@@ -328,12 +328,16 @@ function elegirVariante(i,id){
   if(!v) return;
   var reg=ses(HOY,code);
   var actual=varianteDe(ex,reg);
-  var conDatos=reg&&(reg.sets||[]).some(function(s){
+  var setsEj=reg?(reg.sets||[]).filter(function(s){return s.ex===ex.n}):[];
+  var conDatos=setsEj.some(function(s){
     return s.ex===ex.n&&(s.done||s.kg!==''||s.reps!==''||s.rir!=='');
   });
-  if(conDatos&&actual&&actual.id!==id){
-    toast('No se cambia: ya hay series anotadas con '+actual.nom);
-    return;
+  if(conDatos){
+    var grabada=setsEj.filter(function(s){return s.variante})[0];
+    if(!grabada||grabada.variante!==id){
+      toast('No se cambia: ya hay series anotadas'+(actual?' con '+actual.nom:''));
+      return;
+    }
   }
   DB._variantes[ex.n]=id; DB._variantesMod=ahora(); save(DB);
   if(reg){
