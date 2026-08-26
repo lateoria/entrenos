@@ -198,12 +198,15 @@ const SESIONES={
     {n:'Curl con barra Z o predicador',g:'Bíceps',t:'Aislamiento',s:3,r:'8–12',rir:'1–2',d:'1:15–1:30',ref:'Barra + 10 kg',k:'Hombro quieto'},
     {n:'Curl martillo con mancuernas',g:'Bíceps',t:'Aislamiento',s:2,r:'10–15',rir:'1–2',d:'1:00–1:15',ref:'15 kg × 2',k:'Sin balanceo'}
   ]},
-  E2:{nom:'E2 · EMPUJE · Cluster + volumen',min:'45–55 min',foco:'Hombro lateral · tríceps · pecho superior',
-    cierre:'Aquí la prioridad cambia: después del cluster van deltoide lateral y tríceps. No añadas más presses.',ej:[
-    {n:'Press inclinado neutro',g:'Pecho',t:'Cluster',s:3,r:'4 + 4',rir:'2 final',d:'20 s intra / 2:30',ref:'20 kg × 2',k:'Peso con el que harías 9–10 reps seguidas',cluster:true},
+  E2:{nom:'E2 · EMPUJE · Volumen',min:'45–55 min',foco:'Hombro lateral · tríceps · pecho superior',
+    cierre:'Aquí la prioridad cambia: después del press inclinado van deltoide lateral y tríceps. No añadas más presses.',ej:[
+    {n:'Press inclinado neutro',g:'Pecho',t:'Compuesto',s:3,r:'10–12',rir:'2',d:'2:00',ref:'20 kg × 2',k:'Agarre neutro · recorrido controlado · sin rebote'},
     {n:'Elevaciones laterales con mancuernas',g:'Deltoide',t:'Aislamiento',s:4,r:'15–25',rir:'1',d:'1:00',ref:'8–6 kg × 2',k:'Estrictas · bajar carga antes de balancear'},
     {n:'Extensión de tríceps con cuerda',g:'Tríceps',t:'Aislamiento',s:3,r:'10–15',rir:'1–2',d:'1:00–1:15',ref:'15 kg',k:'Bloqueo completo abajo'},
-    {n:'Press landmine o mancuernas neutro',g:'Hombro',t:'Compuesto',s:2,r:'10–12',rir:'2',d:'1:30–2:00',ref:'15 kg × 2',k:'Recorrido cómodo para cuello/escápula'},
+    {n:'Press landmine o mancuernas neutro',g:'Hombro',t:'Compuesto',s:2,r:'10–12',rir:'2',d:'1:30–2:00',ref:'Ajustar según variante',k:'Recorrido cómodo para cuello/escápula',varianteDef:'mancuernas',variantes:[
+      {id:'landmine',nom:'Landmine',ref:'Barra + discos',kgLabel:'kg añadidos',porLado:false,repsPorBrazo:true},
+      {id:'mancuernas',nom:'Mancuernas neutras',ref:'14 kg × 2',kgLabel:'kg por mancuerna',porLado:true,repsPorBrazo:false}
+    ]},
     {n:'Aperturas inclinadas con mancuernas',g:'Pecho',t:'Aislamiento',s:2,r:'12–15',rir:'1–2',d:'1:00–1:15',ref:'Ajustar',k:'Tensión continua'},
     {n:'Extensión de tríceps tumbado · barra Z/mancuernas',g:'Tríceps',t:'Aislamiento',s:2,r:'10–15',rir:'1–2',d:'1:15',ref:'Barra + 17,5 kg',k:'Codos estables'}
   ]},
@@ -239,7 +242,7 @@ const REGLAS=[
   ['Orden','Compuesto prioritario → segundo patrón → aislamiento → brazos. En E2/T2: un compuesto primero y después la prioridad estética.'],
   ['Progresión','Cuando completes todas las series en el máximo de repeticiones y el RIR previsto, sube 1–2 kg por mancuerna o 2,5–5 kg en máquina.'],
   ['Esfuerzo','Compuestos en RIR 2; aislamientos en RIR 1–2. Fallo solo opcional en la última serie de aislamiento de la semana 5.'],
-  ['Cluster','Solo E2 y T2: 4 repeticiones + 20 s + 4 repeticiones = 1 bloque. Descansa 2 min 30 s entre bloques.'],
+  ['Cluster','Solo T2: 4 repeticiones + 20 s + 4 repeticiones = 1 bloque. Descansa 2 min 30 s entre bloques.'],
   ['Descanso','Respeta el cronómetro. Acortar descansos en los ejercicios principales reduce repeticiones y calidad.'],
   ['Dolor','Agarre neutro y apoyo de pecho. Si aparece dolor de cuello/escápula, cambia a máquina o reduce rango/carga; no lo fuerces.'],
   ['Pierna','Sin día específico hasta el 15 de septiembre. Microdosis opcional de 20–25 min cada 7–10 días.']
@@ -270,6 +273,7 @@ function save(d){ if(!PERSIST){ MEM=d; return; }
 var DB=load();
 if(!DB._cfg) DB._cfg={url:'',codigo:'entrenos-2026'};
 if(!DB._pref) DB._pref={};
+if(!DB._variantes) DB._variantes={};
 /* sella con una marca de tiempo razonable las sesiones antiguas que no la tengan,
    para que la fusión entre dispositivos nunca las pise */
 Object.keys(DB).filter(function(k){return k.indexOf('#')>0}).forEach(function(k){
@@ -309,20 +313,51 @@ function toast(t){var el=document.getElementById('toast');el.textContent=t;el.cl
 function esc(s){return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
 /* ---------- peso por mancuerna ---------- */
-function porLadoDe(ex){
+function variantePorId(ex,id){
+  if(!ex.variantes) return null;
+  return ex.variantes.filter(function(v){return v.id===id})[0]||null;
+}
+function varianteDe(ex,reg){
+  if(!ex.variantes) return null;
+  var conVariante=(reg&&reg.sets||[]).filter(function(s){return s.ex===ex.n&&s.variante});
+  var id=conVariante.length?conVariante[0].variante:(DB._variantes[ex.n]||ex.varianteDef);
+  return variantePorId(ex,id)||ex.variantes[0];
+}
+function elegirVariante(i,id){
+  var code=SEL||proxima(), ex=SESIONES[code].ej[i], v=variantePorId(ex,id);
+  if(!v) return;
+  DB._variantes[ex.n]=id; DB._variantesMod=ahora(); save(DB);
+  var reg=ses(HOY,code);
+  if(reg){
+    reg.sets.forEach(function(s){ if(s.ex===ex.n){
+      s.variante=id; s.porLado=!!v.porLado; s.repsPorBrazo=!!v.repsPorBrazo;
+    }});
+    setSes(HOY,code,reg);
+  }
+  reAbrir(i);
+}
+function porLadoDe(ex,reg){
+  var variante=varianteDe(ex,reg);
+  if(variante) return !!variante.porLado;
   var v=DB._pref[ex.n];
   if(v===undefined) return /[×x]\s*2/.test(ex.ref||'');
   return !!v;
 }
 function togglePorLado(i){
   var code=SEL||proxima(), ex=SESIONES[code].ej[i];
+  if(ex.variantes) return;
   DB._pref[ex.n]=!porLadoDe(ex); DB._prefMod=ahora(); save(DB);
   var reg=ses(HOY,code);
   if(reg){ reg.sets.forEach(function(s){ if(s.ex===ex.n) s.porLado=DB._pref[ex.n] }); setSes(HOY,code,reg); }
   reAbrir(i);
 }
-function pesoTxt(s){ return (s.kg?(s.reps+'×'+s.kg+' kg'+(s.porLado?' ×2':'')):(s.reps+' reps')) }
-function volumen(s){ return (parseFloat(s.kg)||0)*(s.porLado?2:1)*(parseFloat(s.reps)||0) }
+function pesoTxt(s){
+  if(s.variante==='landmine') return 'Landmine · barra + '+s.kg+' kg · '+s.reps+' reps/brazo';
+  if(s.variante==='mancuernas') return 'Mancuernas · '+s.reps+'×'+s.kg+' kg ×2';
+  return (s.kg?(s.reps+'×'+s.kg+' kg'+(s.porLado?' ×2':'')):(s.reps+' reps'));
+}
+function volumen(s){ return (parseFloat(s.kg)||0)*((s.porLado||s.repsPorBrazo)?2:1)*(parseFloat(s.reps)||0) }
+function nombreVariante(id){ return id==='landmine'?'Landmine':(id==='mancuernas'?'Mancuernas neutras':'Histórico sin variante') }
 
 /* ---------- temporizador ---------- */
 var TM={fin:0,tick:null,dur:0,ctx:null};
@@ -384,6 +419,7 @@ function fusionar(a,b){
   }
   if((b._colaMod||0)>=(a._colaMod||0) && b._cola!==undefined){ out._cola=b._cola; out._colaMod=b._colaMod||0 }
   if((b._prefMod||0)>=(a._prefMod||0) && b._pref){ out._pref=b._pref; out._prefMod=b._prefMod||0 }
+  if((b._variantesMod||0)>=(a._variantesMod||0) && b._variantes){ out._variantes=b._variantes; out._variantesMod=b._variantesMod||0 }
   out._cfg=a._cfg;
   return out;
 }
@@ -443,16 +479,21 @@ window.addEventListener('beforeunload',function(){
 });
 
 /* ---------------- histórico ---------------- */
-function ultimaVez(nombre,fecha,code){
-  var res=null, actual=keyDe(fecha,code);
+function ultimaVez(nombre,fecha,code,variante){
+  var res=null, legado=null, actual=keyDe(fecha,code);
   Object.keys(DB).filter(function(k){return k.indexOf('#')>0}).sort().forEach(function(k){
     if(k===actual) return;
     if(k.split('#')[0]>fecha) return;
     var s=DB[k]; if(!s||!s.sets) return;
     var sets=s.sets.filter(function(x){return x.ex===nombre&&x.reps});
-    if(sets.length) res={fecha:k.split('#')[0],k:k,sets:sets};
+    if(!sets.length) return;
+    if(!variante){ res={fecha:k.split('#')[0],k:k,sets:sets}; return }
+    var exactos=sets.filter(function(x){return x.variante===variante});
+    var antiguos=sets.filter(function(x){return !x.variante});
+    if(exactos.length) res={fecha:k.split('#')[0],k:k,sets:exactos};
+    else if(antiguos.length) legado={fecha:k.split('#')[0],k:k,sets:antiguos,legado:true};
   });
-  return res;
+  return res||legado;
 }
 function topRango(r){var m=(r+'').match(/(\d+)\s*[–-]\s*(\d+)/); if(m) return +m[2];
   var m2=(r+'').match(/(\d+)\s*\+\s*(\d+)/); if(m2) return (+m2[1])+(+m2[2]);
@@ -499,7 +540,7 @@ function renderHoy(){
   el.innerHTML=html;
 }
 function exHTML(ex,i,code,wk,reg){
-  var nser=seriesDe(ex,wk), prev=ultimaVez(ex.n,HOY,code), sug=sugerencia(ex,prev), pl=porLadoDe(ex), mias=[];
+  var variante=varianteDe(ex,reg), nser=seriesDe(ex,wk), prev=ultimaVez(ex.n,HOY,code,variante&&variante.id), sug=sugerencia(ex,prev), pl=porLadoDe(ex,reg), mias=[];
   for(var k=0;k<nser;k++){
     mias.push((reg.sets||[]).filter(function(x){return x.ex===ex.n&&x.serie===k+1})[0]||{kg:'',reps:'',rir:'',done:false});
   }
@@ -511,10 +552,11 @@ function exHTML(ex,i,code,wk,reg){
       '<td><input class="n" inputmode="numeric" type="number" placeholder="RIR" value="'+(s.rir||'')+'" oninput="setSet('+i+','+(k+1)+',\'rir\',this.value)"></td>'+
       '<td class="cw"><button class="chk'+(s.done?' on':'')+'" onclick="marcar('+i+','+(k+1)+')">&#10003;</button></td></tr>';
   }).join('');
+  var subidaTxt=variante&&variante.id==='landmine'?' · añade el siguiente disco disponible':' · 1–2 kg por mancuerna o 2,5–5 en máquina';
   var prevTxt = prev
-    ? '<div class="prev'+(sug==='subir'?' up':'')+'"><b>'+(sug==='subir'?'Toca subir peso':'Última vez '+fmt(prev.fecha))+'</b> · '+
-      esc(prev.sets.map(pesoTxt).join(' · '))+(sug==='subir'?' · 1–2 kg por mancuerna o 2,5–5 en máquina':'')+'</div>'
-    : '<div class="prev">Sin registro previo · referencia de la hoja: <b>'+esc(ex.ref)+'</b></div>';
+    ? '<div class="prev'+(sug==='subir'?' up':'')+'"><b>'+(sug==='subir'?'Toca subir peso':'Última vez '+fmt(prev.fecha)+(prev.legado?' · sin variante':'') )+'</b> · '+
+      esc(prev.sets.map(pesoTxt).join(' · '))+(sug==='subir'?subidaTxt:'')+'</div>'
+    : '<div class="prev">Sin registro previo · referencia: <b>'+esc((variante&&variante.ref)||ex.ref)+'</b></div>';
   var descanso=segundosDe(ex.d);
   return '<div class="ex'+(hechas===nser?' done':'')+(ex.cluster?' cluster':'')+'" id="ex'+i+'">'+
     '<div class="exh" onclick="toggle('+i+')">'+
@@ -528,13 +570,14 @@ function exHTML(ex,i,code,wk,reg){
       (ex.cluster?'<p class="tip acc"><b>Cluster:</b> 4 reps + 20 s + 4 reps = 1 bloque. Anota el total del bloque (8 si lo completas).</p>':'')+
       prevTxt+
       '<div class="opts">'+
-        '<button class="opt'+(pl?' on':'')+'" onclick="togglePorLado('+i+')">'+(pl?'kg por mancuerna ×2':'kg totales')+'</button>'+
+        (ex.variantes?ex.variantes.map(function(v){return '<button class="opt'+(variante&&variante.id===v.id?' on':'')+'" onclick="elegirVariante('+i+',\''+v.id+'\')">'+esc(v.nom)+'</button>'}).join(''):'')+
+        (variante?'<button class="opt on">'+esc(variante.kgLabel)+'</button>':'<button class="opt'+(pl?' on':'')+'" onclick="togglePorLado('+i+')">'+(pl?'kg por mancuerna ×2':'kg totales')+'</button>')+
         '<button class="opt play" onclick="arrancarTimer('+descanso+',\''+esc(ex.n).replace(/'/g,'')+'\')">Descanso '+mmss(descanso)+'</button>'+
         (ex.cluster?'<button class="opt play" onclick="arrancarTimer(20,\'Pausa intra-cluster\')">20 s intra</button>':'')+
       '</div>'+
-      '<table class="sets"><tr><th></th><th>kg'+(pl?' (por mancuerna)':'')+'</th><th>reps</th><th>RIR</th><th></th></tr>'+rows+'</table>'+
+      '<table class="sets"><tr><th></th><th>'+(variante?esc(variante.kgLabel):('kg'+(pl?' (por mancuerna)':'')))+'</th><th>'+(variante&&variante.repsPorBrazo?'reps/brazo':'reps')+'</th><th>RIR</th><th></th></tr>'+rows+'</table>'+
       '<p class="tip"><b>Técnica:</b> '+esc(ex.k)+'</p>'+
-      (prev?'<p class="tip"><b>Referencia hoja:</b> '+esc(ex.ref)+'</p>':'')+
+      (prev?'<p class="tip"><b>Referencia:</b> '+esc((variante&&variante.ref)||ex.ref)+'</p>':'')+
     '</div></div>';
 }
 function toggle(i){
@@ -549,12 +592,18 @@ function getReg(code){
 }
 function daSet(reg,ex,i,serie){
   var s=reg.sets.filter(function(y){return y.ex===ex.n&&y.serie===serie})[0];
-  if(!s){ s={ex:ex.n,orden:i+1,grupo:ex.g,serie:serie,kg:'',reps:'',rir:'',porLado:porLadoDe(ex),done:false}; reg.sets.push(s) }
+  if(!s){
+    var v=varianteDe(ex,reg);
+    s={ex:ex.n,orden:i+1,grupo:ex.g,serie:serie,kg:'',reps:'',rir:'',porLado:porLadoDe(ex,reg),done:false};
+    if(v){ s.variante=v.id; s.repsPorBrazo=!!v.repsPorBrazo }
+    reg.sets.push(s);
+  }
   return s;
 }
 function setSet(i,serie,campo,val){
   var code=SEL||proxima(), ex=SESIONES[code].ej[i], reg=getReg(code);
-  var s=daSet(reg,ex,i,serie); s[campo]=val; s.porLado=porLadoDe(ex);
+  var s=daSet(reg,ex,i,serie), v=varianteDe(ex,reg); s[campo]=val; s.porLado=porLadoDe(ex,reg);
+  if(v){ s.variante=v.id; s.repsPorBrazo=!!v.repsPorBrazo }
   setSes(HOY,code,reg);
 }
 function marcar(i,serie){
@@ -621,10 +670,13 @@ function renderHist(){
     '<span class="pill"><b>'+keys.length+'</b> sesiones</span><span class="pill"><b>'+series+'</b> series</span>'+
     '<span class="pill"><b>'+Math.round(tot).toLocaleString('es-ES')+'</b> kg movidos</span></div></div>';
   var todos={};
-  keys.forEach(function(k){DB[k].sets.forEach(function(s){if(s.reps)todos[s.ex]=1})});
+  keys.forEach(function(k){DB[k].sets.forEach(function(s){if(s.reps){
+    var clave=s.ex+'||'+(s.variante||'');
+    todos[clave]=s.ex+(s.variante?' · '+nombreVariante(s.variante):(s.ex==='Press landmine o mancuernas neutro'?' · Histórico sin variante':''));
+  }})});
   var lista=Object.keys(todos).sort();
   html+='<h3>Evolución por ejercicio</h3><select class="sel" id="selEx" onchange="pintaEvo()">'+
-    lista.map(function(n){return '<option>'+esc(n)+'</option>'}).join('')+'</select><div id="evo"></div>';
+    lista.map(function(n){return '<option value="'+esc(n)+'">'+esc(todos[n])+'</option>'}).join('')+'</select><div id="evo"></div>';
   html+='<h3>Sesiones</h3>';
   keys.forEach(function(k){
     var s=DB[k], f=k.split('#')[0], v=0, n=0;
@@ -636,12 +688,12 @@ function renderHist(){
 }
 function pintaEvo(){
   var sel=document.getElementById('selEx'); if(!sel) return;
-  var n=sel.value, pts=[];
+  var partes=sel.value.split('||'), n=partes[0], variante=partes[1]||'', pts=[];
   Object.keys(DB).filter(function(k){return k.indexOf('#')>0}).sort().forEach(function(k){
     var s=DB[k], f=k.split('#')[0]; if(!s||!s.sets) return;
     var mx=0, det=[];
-    s.sets.forEach(function(x){ if(x.ex===n&&x.reps){ det.push(pesoTxt(x));
-      var e=(parseFloat(x.kg)||0)*(x.porLado?2:1)*(1+(parseFloat(x.reps)||0)/30); if(e>mx)mx=e } });
+    s.sets.forEach(function(x){ if(x.ex===n&&x.reps&&((variante&&x.variante===variante)||(!variante&&!x.variante))){ det.push(pesoTxt(x));
+      var e=(parseFloat(x.kg)||0)*((x.porLado||x.repsPorBrazo)?2:1)*(1+(parseFloat(x.reps)||0)/30); if(e>mx)mx=e } });
     if(det.length) pts.push({f:f,e:mx,det:det.join(' · ')});
   });
   var el=document.getElementById('evo');
@@ -655,14 +707,15 @@ function pintaEvo(){
     '<p class="note">La línea usa una estimación de carga (kg totales × (1 + reps/30)); sirve para ver tendencia, no como 1RM real.</p></div>';
 }
 function tsv(){
-  var out=['Fecha\tSesión\tCódigo\tSemana\tOrden\tEjercicio\tGrupo\tSerie\tPeso kg\tPor mancuerna\tPeso total kg\tReps\tRIR\tVolumen kg'];
+  var out=['Fecha\tSesión\tCódigo\tSemana\tOrden\tEjercicio\tGrupo\tSerie\tPeso kg\tPor mancuerna\tPeso total kg\tReps\tRIR\tVolumen kg\tVariante\tReps por brazo'];
   Object.keys(DB).filter(function(k){return k.indexOf('#')>0}).sort().forEach(function(k){
     var s=DB[k], f=k.split('#')[0]; if(!s||!s.sets) return;
     s.sets.slice().sort(function(a,b){return (a.orden-b.orden)||(a.serie-b.serie)}).forEach(function(x){
       if(!x.reps&&!x.done) return;
-      var kg=parseFloat(x.kg)||0, m=x.porLado?2:1;
+      var kg=parseFloat(x.kg)||0, m=(x.porLado||x.repsPorBrazo)?2:1;
       out.push([f,s.sesion||'',s.code||'',s.semana||'',x.orden,x.ex,x.grupo||'',x.serie,
-        (x.kg||''),(x.porLado?'Sí':'No'),(kg?kg*m:''),(x.reps||''),(x.rir||''),Math.round(volumen(x))].join('\t'));
+        (x.kg||''),(x.porLado?'Sí':'No'),(kg?kg*m:''),(x.reps||''),(x.rir||''),Math.round(volumen(x)),
+        (x.variante||''),(x.repsPorBrazo?'Sí':'No')].join('\t'));
     });
   });
   return out.join('\n');
