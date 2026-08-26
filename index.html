@@ -204,7 +204,7 @@ const SESIONES={
     {n:'Elevaciones laterales con mancuernas',g:'Deltoide',t:'Aislamiento',s:4,r:'15–25',rir:'1',d:'1:00',ref:'8–6 kg × 2',k:'Estrictas · bajar carga antes de balancear'},
     {n:'Extensión de tríceps con cuerda',g:'Tríceps',t:'Aislamiento',s:3,r:'10–15',rir:'1–2',d:'1:00–1:15',ref:'15 kg',k:'Bloqueo completo abajo'},
     {n:'Press landmine o mancuernas neutro',g:'Hombro',t:'Compuesto',s:2,r:'10–12',rir:'2',d:'1:30–2:00',ref:'Ajustar según variante',k:'Recorrido cómodo para cuello/escápula',varianteDef:'mancuernas',variantes:[
-      {id:'landmine',nom:'Landmine',ref:'Barra + discos',kgLabel:'kg añadidos',porLado:false,repsPorBrazo:true},
+      {id:'landmine',nom:'Landmine',ref:'Barra + 10 kg',kgLabel:'kg añadidos',porLado:false,repsPorBrazo:true},
       {id:'mancuernas',nom:'Mancuernas neutras',ref:'14 kg × 2',kgLabel:'kg por mancuerna',porLado:true,repsPorBrazo:false}
     ]},
     {n:'Aperturas inclinadas con mancuernas',g:'Pecho',t:'Aislamiento',s:2,r:'12–15',rir:'1–2',d:'1:00–1:15',ref:'Ajustar',k:'Tensión continua'},
@@ -326,8 +326,20 @@ function varianteDe(ex,reg){
 function elegirVariante(i,id){
   var code=SEL||proxima(), ex=SESIONES[code].ej[i], v=variantePorId(ex,id);
   if(!v) return;
-  DB._variantes[ex.n]=id; DB._variantesMod=ahora(); save(DB);
   var reg=ses(HOY,code);
+  var actual=varianteDe(ex,reg);
+  var setsEj=reg?(reg.sets||[]).filter(function(s){return s.ex===ex.n}):[];
+  var conDatos=setsEj.some(function(s){
+    return s.ex===ex.n&&(s.done||s.kg!==''||s.reps!==''||s.rir!=='');
+  });
+  if(conDatos){
+    var grabada=setsEj.filter(function(s){return s.variante})[0];
+    if(!grabada||grabada.variante!==id){
+      toast('No se cambia: ya hay series anotadas'+(actual?' con '+actual.nom:''));
+      return;
+    }
+  }
+  DB._variantes[ex.n]=id; DB._variantesMod=ahora(); save(DB);
   if(reg){
     reg.sets.forEach(function(s){ if(s.ex===ex.n){
       s.variante=id; s.porLado=!!v.porLado; s.repsPorBrazo=!!v.repsPorBrazo;
