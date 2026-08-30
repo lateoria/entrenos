@@ -270,8 +270,36 @@ function load(){ if(!PERSIST) return MEM;
   try{ return JSON.parse(localStorage.getItem('entrenos2026v2')||'{}'); }catch(e){ return {}; } }
 function save(d){ if(!PERSIST){ MEM=d; return; }
   try{ localStorage.setItem('entrenos2026v2',JSON.stringify(d)); }catch(e){ MEM=d; } }
-var DB=load();
-if(!DB._cfg) DB._cfg={url:'',codigo:'entrenos-2026'};
+function codificaCfg(c){
+  return btoa(unescape(encodeURIComponent(JSON.stringify({url:c.url,codigo:c.codigo}))))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function decodificaCfg(s){
+  s=(s||'').replace(/-/g,'+').replace(/_/g,'/');
+  while(s.length%4) s+='=';
+  return JSON.parse(decodeURIComponent(escape(atob(s))));
+}
+function cfgValida(c){
+  try{
+    var u=new URL(c&&c.url||'');
+    return u.protocol==='https:'&&u.hostname==='script.google.com'&&
+      /^\/macros\/s\/[^/]+\/exec$/.test(u.pathname)&&typeof c.codigo==='string'&&c.codigo.length>0;
+  }catch(e){ return false }
+}
+function cfgDesdeEnlace(){
+  var raw='';
+  try{ raw=new URLSearchParams((location.hash||'').replace(/^#/,'')).get('sync')||'' }catch(e){}
+  if(!raw) return {cfg:null,error:''};
+  try{
+    var c=decodificaCfg(raw);
+    if(!cfgValida(c)) throw new Error('config');
+    return {cfg:{url:c.url,codigo:c.codigo},error:''};
+  }catch(e){ return {cfg:null,error:'El enlace privado no es válido'} }
+  finally{ try{ history.replaceState(null,'',location.pathname+location.search) }catch(e){} }
+}
+var VINCULO=cfgDesdeEnlace(), DB=load();
+if(VINCULO.cfg) DB._cfg=VINCULO.cfg;
+if(!DB._cfg) DB._cfg={url:'',codigo:''};
 if(!DB._pref) DB._pref={};
 if(!DB._variantes) DB._variantes={};
 /* sella con una marca de tiempo razonable las sesiones antiguas que no la tengan,
@@ -483,6 +511,31 @@ function sincronizar(){
       toast((e1||e2)?('No se pudo sincronizar: '+(e1||e2)):'Sincronizado con la hoja');
     });
   });
+}
+function urlVinculoPrivado(){
+  var c=DB._cfg||{};
+  if(!cfgValida(c)) return '';
+  return location.origin+location.pathname+'#sync='+encodeURIComponent(codificaCfg(c));
+}
+function copiaVinculo(txt){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(function(){toast('Enlace privado copiado')},function(){copiaVinculoAntiguo(txt)});
+  }else copiaVinculoAntiguo(txt);
+}
+function copiaVinculoAntiguo(txt){
+  var ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); toast('Enlace privado copiado') }
+  catch(e){ toast('No se pudo copiar el enlace') }
+  ta.remove();
+}
+function compartirVinculo(){
+  var url=urlVinculoPrivado();
+  if(!url){ toast('Configura primero la sincronía'); return }
+  if(navigator.share){
+    navigator.share({title:'Entrenos 2026',text:'Abre este enlace privado para vincular el dispositivo.',url:url})
+      .catch(function(e){ if(!e||e.name!=='AbortError') copiaVinculo(url) });
+  }else copiaVinculo(url);
 }
 window.addEventListener('beforeunload',function(){
   if(SYNC.pend&&DB._cfg&&DB._cfg.url){ clearTimeout(SYNC.pend);
@@ -746,6 +799,11 @@ function renderExp(){
     (conf?'<div class="okbox">Se envía sola al cerrar cada sesión y unos segundos después de cada cambio. El punto de la cabecera indica el estado.</div>':
           '<div class="warn">Mientras no la conectes, los datos solo viven en este dispositivo.</div>')+
     '</div>'+
+    (conf?'<div class="card"><div class="kicker">Vincular otro dispositivo</div>'+
+      '<h2>Un enlace privado</h2>'+
+      '<p class="sub">Ábrelo en el PC, tableta o móvil nuevo. La app guardará la conexión, descargará todo el historial y retirará la clave de la barra de direcciones.</p>'+
+      '<button class="btn" onclick="compartirVinculo()">Compartir enlace privado</button>'+
+      '<div class="warn">Este enlace da acceso a tus datos. Guárdalo para ti y no lo publiques.</div></div>':'')+
     '<div class="card"><div class="kicker">Copia manual</div><h2>'+filas+' filas registradas</h2>'+
     '<p class="sub">Por si quieres pegarlas a mano en cualquier pestaña.</p>'+
     '<button class="btn sec" onclick="copiar()">Copiar todo</button>'+
@@ -807,7 +865,11 @@ function ir(v){ var b=document.querySelector('nav button[data-v="'+v+'"]'); if(b
 
 dot(DB._cfg&&DB._cfg.url?'wait':'off');
 render();
-if(DB._cfg&&DB._cfg.url) bajar(function(e){ if(!e) render() });
+if(DB._cfg&&DB._cfg.url) bajar(function(e){
+  if(!e){ render(); if(VINCULO.cfg) toast('Dispositivo vinculado · historial recuperado') }
+  else if(VINCULO.cfg) toast('Vínculo guardado · no se pudo descargar todavía');
+});
+else if(VINCULO.error) setTimeout(function(){toast(VINCULO.error)},200);
 </script>
 </body>
 </html>
