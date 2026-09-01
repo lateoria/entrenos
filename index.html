@@ -206,11 +206,14 @@ const SESIONES={
     cierre:'Prioridad: progresar en los ejercicios 1 y 2. Las series de aislamiento deben sentirse en el músculo, no en cuello u hombro.',ej:[
     {n:'Press inclinado con mancuernas · agarre neutro',g:'Pecho',t:'Compuesto',s:4,r:'6–10',rir:'2',d:'2:30–3:00',ref:'20 kg × 2',k:'Pausa breve abajo · sin rebote'},
     {n:'Press plano con mancuernas · neutro/semineutro',g:'Pecho',t:'Compuesto',s:3,r:'8–12',rir:'2',d:'2:00',ref:'22 kg × 2',k:'Escápulas apoyadas'},
-    {n:'Press landmine o mancuernas neutro',g:'Hombro',t:'Compuesto',s:2,r:'8–12',rir:'2–3',d:'1:45–2:00',ref:'15 kg × 2',k:'No encoger hombros'},
+    {n:'Press landmine o mancuernas neutro',g:'Hombro',t:'Compuesto',s:2,r:'8–12',rir:'2–3',d:'1:45–2:00',ref:'Ajustar según variante',k:'No encoger hombros',varianteDef:'mancuernas',variantes:[
+      {id:'landmine',nom:'Landmine',ref:'Barra + 10 kg',kgLabel:'kg añadidos',porLado:false,repsPorBrazo:true},
+      {id:'mancuernas',nom:'Mancuernas neutras',ref:'15 kg × 2',kgLabel:'kg por mancuerna',porLado:true,repsPorBrazo:false}
+    ]},
     {n:'Aperturas inclinadas o cable bajo–alto',g:'Pecho',t:'Aislamiento',s:2,r:'12–15',rir:'1–2',d:'1:15',ref:'14 kg × 2 / ajustar',k:'Estiramiento sin dolor'},
     {n:'Elevaciones laterales con mancuernas',g:'Deltoide',t:'Aislamiento',s:4,r:'12–20',rir:'1–2',d:'1:00–1:15',ref:'8 kg × 2',k:'Codos guían · sin impulso'},
-    {n:'Extensión de tríceps con cuerda',g:'Tríceps',t:'Aislamiento',s:3,r:'8–12',rir:'1–2',d:'1:15–1:30',ref:'15 kg',k:'Separar la cuerda abajo'},
-    {n:'Extensión de tríceps overhead · mancuerna/cable',g:'Tríceps',t:'Aislamiento',s:2,r:'12–15',rir:'1–2',d:'1:00–1:15',ref:'14 kg / ajustar',k:'Codos estables'}
+    {n:'Extensión de tríceps con cuerda',g:'Tríceps',t:'Aislamiento',s:3,r:'8–12',rir:'1–2',d:'2:00',ref:'15 kg',k:'Separar la cuerda abajo'},
+    {n:'Extensión de tríceps overhead · mancuerna/cable',g:'Tríceps',t:'Aislamiento',s:2,r:'12–15',rir:'1–2',d:'1:30',ref:'14 kg / ajustar',k:'Codos estables'}
   ]},
   T1:{nom:'T1 · TIRÓN · Tensión',min:'60–70 min',foco:'Dorsales · espalda media · bíceps',
     cierre:'Prioridad: progresar en jalón/dominada y remo. No adelantes el hombro al terminar el recorrido.',ej:[
@@ -299,6 +302,31 @@ if(!DB._cfg) DB._cfg={url:'',codigo:'entrenos-2026'};
 if(!DB._pref) DB._pref={};
 if(!DB._variantes) DB._variantes={};
 if(!DB['nutrition-targets']) DB['nutrition-targets']={kcal:2400,proteina:130,laborable:2200,finde:2900,mod:Date.now()};
+/* Los dos E1 anteriores al selector guardaban el peso, pero no la variante.
+   Se etiquetan una sola vez para que sus progresiones no se mezclen. */
+function migrarVariantesE1(db){
+  var nombre='Press landmine o mancuernas neutro', cambio=false;
+  function etiquetar(clave,variante,porLado,repsPorBrazo){
+    var sesion=db[clave], tocada=false;
+    if(!sesion||!Array.isArray(sesion.sets)) return false;
+    sesion.sets.forEach(function(s){
+      if(s.ex===nombre&&!s.variante){
+        s.variante=variante; s.porLado=porLado; s.repsPorBrazo=repsPorBrazo; tocada=true;
+      }
+    });
+    if(tocada) sesion.mod=Date.now();
+    return tocada;
+  }
+  cambio=etiquetar('2026-08-31#E1','mancuernas',true,false)||cambio;
+  var anterior=Object.keys(db).filter(function(k){
+    var s=db[k];
+    return k.indexOf('#E1')===10&&k.slice(0,10)<'2026-08-31'&&s&&Array.isArray(s.sets)&&
+      s.sets.some(function(x){return x.ex===nombre});
+  }).sort().pop();
+  if(anterior) cambio=etiquetar(anterior,'landmine',false,true)||cambio;
+  return cambio;
+}
+var MIGRACION_E1_PENDIENTE=migrarVariantesE1(DB);
 /* sella con una marca de tiempo razonable las sesiones antiguas que no la tengan,
    para que la fusión entre dispositivos nunca las pise */
 Object.keys(DB).filter(function(k){return k.indexOf('#')>0}).forEach(function(k){
@@ -611,6 +639,7 @@ function fusionar(a,b){
   if((b._prefMod||0)>=(a._prefMod||0) && b._pref){ out._pref=b._pref; out._prefMod=b._prefMod||0 }
   if((b._variantesMod||0)>=(a._variantesMod||0) && b._variantes){ out._variantes=b._variantes; out._variantesMod=b._variantesMod||0 }
   out._cfg=a._cfg;
+  MIGRACION_E1_PENDIENTE=migrarVariantesE1(out)||MIGRACION_E1_PENDIENTE;
   return out;
 }
 function jsonp(url,cb){
@@ -1079,7 +1108,10 @@ function ir(v){ var b=document.querySelector('nav button[data-v="'+v+'"]'); if(b
 
 dot(DB._cfg&&DB._cfg.url?'wait':'off');
 render();
-if(DB._cfg&&DB._cfg.url) bajar(function(e){ if(!e) render() });
+if(DB._cfg&&DB._cfg.url) bajar(function(e){ if(!e){
+  render();
+  if(MIGRACION_E1_PENDIENTE){ MIGRACION_E1_PENDIENTE=false; pedirSubida(); }
+} });
 </script>
 </body>
 </html>
