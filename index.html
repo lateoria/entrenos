@@ -218,11 +218,11 @@ const SESIONES={
   T1:{nom:'T1 · TIRÓN · Tensión',min:'60–70 min',foco:'Dorsales · espalda media · bíceps',
     cierre:'Prioridad: progresar en jalón/dominada y remo. No adelantes el hombro al terminar el recorrido.',ej:[
     {n:'Dominada neutra asistida o jalón neutro',g:'Espalda',t:'Compuesto',s:4,r:'6–10',rir:'2',d:'2:30–3:00',ref:'35 kg asistencia / 40 kg jalón',k:'Pecho alto · codos hacia los costados'},
-    {n:'Remo neutro con pecho apoyado',g:'Espalda',t:'Compuesto',s:4,r:'6–10',rir:'2',d:'2:30–3:00',ref:'20 kg / barra + 25',k:'Pausa de 1 s atrás'},
-    {n:'Jalón unilateral',g:'Espalda',t:'Compuesto',s:2,r:'10–12',rir:'2',d:'1:30',ref:'20–25 kg',k:'Estirar dorsal sin girar'},
+    {n:'Remo neutro con pecho apoyado',g:'Espalda',t:'Compuesto',s:4,r:'6–10',rir:'2',d:'2:30–3:00',ref:'Barra + 25 kg en discos',k:'Pausa de 1 s atrás · anotar solo los discos; la barra va aparte',kgTipo:'discos_barra',kgLabel:'kg en discos'},
+    {n:'Jalón unilateral',g:'Espalda',t:'Compuesto',s:2,r:'20–24 totales',rir:'2',d:'1:30',ref:'20–25 kg',k:'Estirar dorsal sin girar · anotar el total: 20 reps = 10 por brazo',kgTipo:'polea_unilateral',kgLabel:'kg de la polea',repsTotalesBrazos:true},
     {n:'Remo sentado en polea',g:'Espalda',t:'Compuesto',s:2,r:'10–12',rir:'2',d:'1:30',ref:'35–40 kg',k:'Sin impulso lumbar'},
     {n:'Pájaros con pecho apoyado',g:'Deltoide posterior',t:'Aislamiento',s:3,r:'15–20',rir:'1–2',d:'1:00',ref:'8 kg × 2',k:'Hombros abajo · recorrido limpio'},
-    {n:'Curl con barra Z o predicador',g:'Bíceps',t:'Aislamiento',s:3,r:'8–12',rir:'1–2',d:'1:15–1:30',ref:'Barra + 10 kg',k:'Hombro quieto'},
+    {n:'Curl con barra Z o predicador',g:'Bíceps',t:'Aislamiento',s:3,r:'8–12',rir:'1–2',d:'1:15–1:30',ref:'Barra + 10 kg en discos',k:'Hombro quieto · anotar solo los discos; la barra va aparte',kgTipo:'discos_barra',kgLabel:'kg en discos'},
     {n:'Curl martillo con mancuernas',g:'Bíceps',t:'Aislamiento',s:2,r:'10–15',rir:'1–2',d:'1:00–1:15',ref:'15 kg × 2',k:'Sin balanceo'}
   ]},
   E2:{nom:'E2 · EMPUJE · Volumen',min:'45–55 min',foco:'Hombro lateral · tríceps · pecho superior',
@@ -239,7 +239,7 @@ const SESIONES={
   ]},
   T2:{nom:'T2 · TIRÓN · Cluster + volumen',min:'45–55 min',foco:'Bíceps · anchura de espalda · deltoide posterior',
     cierre:'Bíceps aparece pronto a propósito: es día de especialización. Mantén dos repeticiones en recámara en el jalón.',ej:[
-    {n:'Remo con pecho apoyado',g:'Espalda',t:'Cluster',s:3,r:'4 + 4',rir:'2 final',d:'20 s intra / 2:30',ref:'20 kg / barra + 25',k:'Pausa de 1 s · peso de 9–10 reps',cluster:true},
+    {n:'Remo con pecho apoyado',g:'Espalda',t:'Cluster',s:3,r:'4 + 4',rir:'2 final',d:'20 s intra / 2:30',ref:'Barra + 25 kg en discos',k:'Pausa de 1 s · peso de 9–10 reps · anotar solo los discos; la barra va aparte',cluster:true,kgTipo:'discos_barra',kgLabel:'kg en discos'},
     {n:'Curl inclinado con mancuernas',g:'Bíceps',t:'Aislamiento',s:3,r:'10–12',rir:'1–2',d:'1:15',ref:'Ajustar',k:'Brazo ligeramente detrás del torso'},
     {n:'Jalón neutro',g:'Espalda',t:'Compuesto',s:3,r:'10–12',rir:'2',d:'1:30–2:00',ref:'40 kg',k:'No llegar al fallo'},
     {n:'Curl martillo con mancuernas',g:'Bíceps',t:'Aislamiento',s:3,r:'10–15',rir:'1–2',d:'1:00–1:15',ref:'14 kg × 2',k:'Sin impulso'},
@@ -327,6 +327,30 @@ function migrarVariantesE1(db){
   return cambio;
 }
 var MIGRACION_E1_PENDIENTE=migrarVariantesE1(DB);
+/* Conserva el significado real de los registros anteriores: en barra se
+   anotaron solo discos y en el jalón unilateral las reps eran la suma de ambos brazos. */
+function migrarUnidadesRegistro(db){
+  var barras={'Remo neutro con pecho apoyado':true,'Remo con pecho apoyado':true,'Curl con barra Z o predicador':true};
+  var cambio=false;
+  Object.keys(db).filter(function(k){return k.indexOf('#')>0}).forEach(function(k){
+    var sesion=db[k], tocada=false;
+    if(!sesion||!Array.isArray(sesion.sets)) return;
+    sesion.sets.forEach(function(s){
+      if(barras[s.ex]){
+        if(s.kgTipo!=='discos_barra'){ s.kgTipo='discos_barra'; tocada=true; }
+        if(s.porLado){ s.porLado=false; tocada=true; }
+      }
+      if(s.ex==='Jalón unilateral'){
+        if(!s.repsTotalesBrazos){ s.repsTotalesBrazos=true; tocada=true; }
+        if(s.porLado){ s.porLado=false; tocada=true; }
+        if(s.repsPorBrazo){ s.repsPorBrazo=false; tocada=true; }
+      }
+    });
+    if(tocada){ sesion.mod=Date.now(); cambio=true; }
+  });
+  return cambio;
+}
+var MIGRACION_UNIDADES_PENDIENTE=migrarUnidadesRegistro(DB);
 /* sella con una marca de tiempo razonable las sesiones antiguas que no la tengan,
    para que la fusión entre dispositivos nunca las pise */
 Object.keys(DB).filter(function(k){return k.indexOf('#')>0}).forEach(function(k){
@@ -557,13 +581,14 @@ function elegirVariante(i,id){
 function porLadoDe(ex,reg){
   var variante=varianteDe(ex,reg);
   if(variante) return !!variante.porLado;
+  if(ex.kgTipo) return false;
   var v=DB._pref[ex.n];
   if(v===undefined) return /[×x]\s*2/.test(ex.ref||'');
   return !!v;
 }
 function togglePorLado(i){
   var code=SEL||proxima(), ex=SESIONES[code].ej[i];
-  if(ex.variantes) return;
+  if(ex.variantes||ex.kgTipo) return;
   DB._pref[ex.n]=!porLadoDe(ex); DB._prefMod=ahora(); save(DB);
   var reg=ses(HOY,code);
   if(reg){ reg.sets.forEach(function(s){ if(s.ex===ex.n) s.porLado=DB._pref[ex.n] }); setSes(HOY,code,reg); }
@@ -572,6 +597,11 @@ function togglePorLado(i){
 function pesoTxt(s){
   if(s.variante==='landmine') return 'Landmine · barra + '+s.kg+' kg · '+s.reps+' reps/brazo';
   if(s.variante==='mancuernas') return 'Mancuernas · '+s.reps+'×'+s.kg+' kg ×2';
+  if(s.kgTipo==='discos_barra') return 'Barra + '+s.kg+' kg en discos · '+s.reps+' reps';
+  if(s.repsTotalesBrazos){
+    var mitad=(parseFloat(s.reps)||0)/2, porBrazo=(mitad+'').replace('.',',');
+    return (s.kg?(s.kg+' kg · '):'')+s.reps+' reps totales ('+porBrazo+' por brazo)';
+  }
   return (s.kg?(s.reps+'×'+s.kg+' kg'+(s.porLado?' ×2':'')):(s.reps+' reps'));
 }
 function volumen(s){ return (parseFloat(s.kg)||0)*((s.porLado||s.repsPorBrazo)?2:1)*(parseFloat(s.reps)||0) }
@@ -640,6 +670,7 @@ function fusionar(a,b){
   if((b._variantesMod||0)>=(a._variantesMod||0) && b._variantes){ out._variantes=b._variantes; out._variantesMod=b._variantesMod||0 }
   out._cfg=a._cfg;
   MIGRACION_E1_PENDIENTE=migrarVariantesE1(out)||MIGRACION_E1_PENDIENTE;
+  MIGRACION_UNIDADES_PENDIENTE=migrarUnidadesRegistro(out)||MIGRACION_UNIDADES_PENDIENTE;
   return out;
 }
 function jsonp(url,cb){
@@ -849,11 +880,11 @@ function exHTML(ex,i,code,wk,reg){
   var rows=mias.map(function(s,k){
     return '<tr><td>'+(ex.cluster?'B'+(k+1):(k+1))+'</td>'+
       '<td><input class="n" inputmode="decimal" type="number" step="0.5" placeholder="kg" value="'+(s.kg||'')+'" oninput="setSet('+i+','+(k+1)+',\'kg\',this.value)"></td>'+
-      '<td><input class="n" inputmode="numeric" type="number" placeholder="'+(ex.cluster?'8':'reps')+'" value="'+(s.reps||'')+'" oninput="setSet('+i+','+(k+1)+',\'reps\',this.value)"></td>'+
+      '<td><input class="n" inputmode="numeric" type="number" placeholder="'+(ex.cluster?'8':(ex.repsTotalesBrazos?'total':'reps'))+'" value="'+(s.reps||'')+'" oninput="setSet('+i+','+(k+1)+',\'reps\',this.value)"></td>'+
       '<td><input class="n" inputmode="numeric" type="number" placeholder="RIR" value="'+(s.rir||'')+'" oninput="setSet('+i+','+(k+1)+',\'rir\',this.value)"></td>'+
       '<td class="cw"><button class="chk'+(s.done?' on':'')+'" onclick="marcar('+i+','+(k+1)+')">&#10003;</button></td></tr>';
   }).join('');
-  var subidaTxt=variante&&variante.id==='landmine'?' · añade el siguiente disco disponible':' · 1–2 kg por mancuerna o 2,5–5 en máquina';
+  var subidaTxt=(variante&&variante.id==='landmine')||ex.kgTipo==='discos_barra'?' · añade el siguiente disco disponible':' · 1–2 kg por mancuerna o 2,5–5 en máquina';
   var prevTxt = prev
     ? '<div class="prev'+(sug==='subir'?' up':'')+'"><b>'+(sug==='subir'?'Toca subir peso':'Última vez '+fmt(prev.fecha)+(prev.legado?' · sin variante':'') )+'</b> · '+
       esc(prev.sets.map(pesoTxt).join(' · '))+(sug==='subir'?subidaTxt:'')+'</div>'
@@ -872,11 +903,11 @@ function exHTML(ex,i,code,wk,reg){
       prevTxt+
       '<div class="opts">'+
         (ex.variantes?ex.variantes.map(function(v){return '<button class="opt'+(variante&&variante.id===v.id?' on':'')+'" onclick="elegirVariante('+i+',\''+v.id+'\')">'+esc(v.nom)+'</button>'}).join(''):'')+
-        (variante?'<button class="opt on">'+esc(variante.kgLabel)+'</button>':'<button class="opt'+(pl?' on':'')+'" onclick="togglePorLado('+i+')">'+(pl?'kg por mancuerna ×2':'kg totales')+'</button>')+
+        (variante?'<button class="opt on">'+esc(variante.kgLabel)+'</button>':(ex.kgLabel?'<button class="opt on">'+esc(ex.kgLabel)+'</button>':'<button class="opt'+(pl?' on':'')+'" onclick="togglePorLado('+i+')">'+(pl?'kg por mancuerna ×2':'kg totales')+'</button>'))+
         '<button class="opt play" onclick="arrancarTimer('+descanso+',\''+esc(ex.n).replace(/'/g,'')+'\')">Descanso '+mmss(descanso)+'</button>'+
         (ex.cluster?'<button class="opt play" onclick="arrancarTimer(20,\'Pausa intra-cluster\')">20 s intra</button>':'')+
       '</div>'+
-      '<table class="sets"><tr><th></th><th>'+(variante?esc(variante.kgLabel):('kg'+(pl?' (por mancuerna)':'')))+'</th><th>'+(variante&&variante.repsPorBrazo?'reps/brazo':'reps')+'</th><th>RIR</th><th></th></tr>'+rows+'</table>'+
+      '<table class="sets"><tr><th></th><th>'+(variante?esc(variante.kgLabel):(ex.kgLabel?esc(ex.kgLabel):('kg'+(pl?' (por mancuerna)':''))))+'</th><th>'+(variante&&variante.repsPorBrazo?'reps/brazo':(ex.repsTotalesBrazos?'reps totales':'reps'))+'</th><th>RIR</th><th></th></tr>'+rows+'</table>'+
       '<p class="tip"><b>Técnica:</b> '+esc(ex.k)+'</p>'+
       (prev?'<p class="tip"><b>Referencia:</b> '+esc((variante&&variante.ref)||ex.ref)+'</p>':'')+
     '</div></div>';
@@ -897,6 +928,8 @@ function daSet(reg,ex,i,serie){
     var v=varianteDe(ex,reg);
     s={ex:ex.n,orden:i+1,grupo:ex.g,serie:serie,kg:'',reps:'',rir:'',porLado:porLadoDe(ex,reg),done:false};
     if(v){ s.variante=v.id; s.repsPorBrazo=!!v.repsPorBrazo }
+    if(ex.kgTipo) s.kgTipo=ex.kgTipo;
+    if(ex.repsTotalesBrazos) s.repsTotalesBrazos=true;
     reg.sets.push(s);
   }
   return s;
@@ -905,6 +938,8 @@ function setSet(i,serie,campo,val){
   var code=SEL||proxima(), ex=SESIONES[code].ej[i], reg=getReg(code);
   var s=daSet(reg,ex,i,serie), v=varianteDe(ex,reg); s[campo]=val; s.porLado=porLadoDe(ex,reg);
   if(v){ s.variante=v.id; s.repsPorBrazo=!!v.repsPorBrazo }
+  if(ex.kgTipo) s.kgTipo=ex.kgTipo;
+  if(ex.repsTotalesBrazos) s.repsTotalesBrazos=true;
   setSes(HOY,code,reg);
 }
 function marcar(i,serie){
@@ -994,7 +1029,8 @@ function pintaEvo(){
     var s=DB[k], f=k.split('#')[0]; if(!s||!s.sets) return;
     var mx=0, det=[];
     s.sets.forEach(function(x){ if(x.ex===n&&x.reps&&((variante&&x.variante===variante)||(!variante&&!x.variante))){ det.push(pesoTxt(x));
-      var e=(parseFloat(x.kg)||0)*((x.porLado||x.repsPorBrazo)?2:1)*(1+(parseFloat(x.reps)||0)/30); if(e>mx)mx=e } });
+      var repsE=(parseFloat(x.reps)||0)/(x.repsTotalesBrazos?2:1);
+      var e=(parseFloat(x.kg)||0)*((x.porLado||x.repsPorBrazo)?2:1)*(1+repsE/30); if(e>mx)mx=e } });
     if(det.length) pts.push({f:f,e:mx,det:det.join(' · ')});
   });
   var el=document.getElementById('evo');
@@ -1008,7 +1044,7 @@ function pintaEvo(){
     '<p class="note">La línea usa una estimación de carga (kg totales × (1 + reps/30)); sirve para ver tendencia, no como 1RM real.</p></div>';
 }
 function tsv(){
-  var out=['Fecha\tSesión\tCódigo\tSemana\tOrden\tEjercicio\tGrupo\tSerie\tPeso kg\tPor mancuerna\tPeso total kg\tReps\tRIR\tVolumen kg\tVariante\tReps por brazo'];
+  var out=['Fecha\tSesión\tCódigo\tSemana\tOrden\tEjercicio\tGrupo\tSerie\tPeso kg\tPor mancuerna\tPeso total kg\tReps\tRIR\tVolumen kg\tVariante\tReps por brazo\tTipo de peso\tReps totales ambos brazos'];
   Object.keys(DB).filter(function(k){return k.indexOf('#')>0}).sort().forEach(function(k){
     var s=DB[k], f=k.split('#')[0]; if(!s||!s.sets) return;
     s.sets.slice().sort(function(a,b){return (a.orden-b.orden)||(a.serie-b.serie)}).forEach(function(x){
@@ -1016,7 +1052,7 @@ function tsv(){
       var kg=parseFloat(x.kg)||0, m=(x.porLado||x.repsPorBrazo)?2:1;
       out.push([f,s.sesion||'',s.code||'',s.semana||'',x.orden,x.ex,x.grupo||'',x.serie,
         (x.kg||''),(x.porLado?'Sí':'No'),(kg?kg*m:''),(x.reps||''),(x.rir||''),Math.round(volumen(x)),
-        (x.variante||''),(x.repsPorBrazo?'Sí':'No')].join('\t'));
+        (x.variante||''),(x.repsPorBrazo?'Sí':'No'),(x.kgTipo||''),(x.repsTotalesBrazos?'Sí':'No')].join('\t'));
     });
   });
   return out.join('\n');
@@ -1110,7 +1146,9 @@ dot(DB._cfg&&DB._cfg.url?'wait':'off');
 render();
 if(DB._cfg&&DB._cfg.url) bajar(function(e){ if(!e){
   render();
-  if(MIGRACION_E1_PENDIENTE){ MIGRACION_E1_PENDIENTE=false; pedirSubida(); }
+  if(MIGRACION_E1_PENDIENTE||MIGRACION_UNIDADES_PENDIENTE){
+    MIGRACION_E1_PENDIENTE=false; MIGRACION_UNIDADES_PENDIENTE=false; pedirSubida();
+  }
 } });
 </script>
 </body>
